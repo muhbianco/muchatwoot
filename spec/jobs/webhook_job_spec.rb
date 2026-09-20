@@ -28,4 +28,18 @@ RSpec.describe WebhookJob do
       perform_enqueued_jobs { job }
     end
   end
+
+  context 'with a URL that is not http(s)' do
+    ['null', 'undefined', '', '   ', 'ftp://example.com'].each do |bad_url|
+      it "skips delivery for #{bad_url.inspect}" do
+        expect(Webhooks::Trigger).not_to receive(:execute)
+        perform_enqueued_jobs { described_class.perform_later(bad_url, payload, webhook_type) }
+      end
+    end
+
+    it 'skips delivery for nil' do
+      expect(Webhooks::Trigger).not_to receive(:execute)
+      perform_enqueued_jobs { described_class.perform_later(nil, payload, webhook_type) }
+    end
+  end
 end
