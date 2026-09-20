@@ -20,4 +20,26 @@ RSpec.describe Channel::Api do
       end
     end
   end
+
+  describe 'blank webhook_url normalization' do
+    let(:channel_api) { create(:channel_api) }
+
+    it 'stores nil when the dashboard sends the JS string "null"' do
+      channel_api.update!(webhook_url: 'null')
+      expect(channel_api.reload.webhook_url).to be_nil
+    end
+
+    it 'stores nil for "undefined" and whitespace' do
+      channel_api.update!(webhook_url: 'undefined')
+      expect(channel_api.reload.webhook_url).to be_nil
+
+      channel_api.update!(webhook_url: '   ')
+      expect(channel_api.reload.webhook_url).to be_nil
+    end
+
+    it 'keeps a real URL untouched' do
+      channel_api.update!(webhook_url: 'https://example.com/hook')
+      expect(channel_api.reload.webhook_url).to eq('https://example.com/hook')
+    end
+  end
 end
