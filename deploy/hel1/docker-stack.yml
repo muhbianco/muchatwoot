@@ -1,0 +1,129 @@
+# =============================================================================
+# Chatwoot — Stack Portainer (Docker Swarm + Traefik)
+# Fonte: muchatwoot@mb/main  |  YAML: deploy/hel1/docker-stack.yml
+# Imagem: muhrilobianco/chatwoot:latest
+#   docker build -f deploy/hel1/Dockerfile -t chatwoot:latest .
+# Domínio: chatwoot.muhbianco.com.br
+# Rede: chatbot-net (pgvector_pgvector + redis_redis). Redis DB 2.
+#
+# Mesa humana multi-tenant. Webhooks da Meta NÃO entram aqui — a api-agents
+# recebe Face/Insta/Zap e só encaminha conversas em handoff (inbox tipo API).
+#
+# Secrets via ${VAR} no Env do Portainer. YAML local pode ir no StackFileContent.
+# One-shot após create: rails db:chatwoot_prepare
+# =============================================================================
+
+version: "3.8"
+
+x-cw-env: &cw_env
+  NODE_ENV: production
+  RAILS_ENV: production
+  INSTALLATION_ENV: docker
+  FRONTEND_URL: https://chatwoot.muhbianco.com.br
+  FORCE_SSL: "false"
+  DEFAULT_LOCALE: pt_BR
+  ENABLE_ACCOUNT_SIGNUP: "false"
+  ENABLE_PUSH_RELAY_SERVER: "false"
+  ACTIVE_STORAGE_SERVICE: local
+  RAILS_LOG_TO_STDOUT: "true"
+  LOG_LEVEL: info
+  INSTALLATION_NAME: MuhBianco
+  BRAND_NAME: MuhBianco
+  BRAND_URL: https://muhbianco.com.br
+  SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+  POSTGRES_HOST: pgvector_pgvector
+  POSTGRES_PORT: "5432"
+  POSTGRES_DATABASE: chatwoot_production
+  POSTGRES_USERNAME: chatwoot
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  REDIS_URL: redis://redis_redis:6379/2
+  PRESENCE_DURATION: "90"
+  MAILER_SENDER_EMAIL: MuhBianco <contato@muhbianco.com.br>
+  SMTP_DOMAIN: muhbianco.com.br
+  SMTP_ADDRESS: ${SMTP_ADDRESS}
+  SMTP_PORT: ${SMTP_PORT}
+  SMTP_USERNAME: ${SMTP_USERNAME}
+  SMTP_PASSWORD: ${SMTP_PASSWORD}
+  SMTP_AUTHENTICATION: login
+  SMTP_ENABLE_STARTTLS_AUTO: "true"
+
+services:
+  rails:
+    image: muhrilobianco/chatwoot:latest
+    environment:
+      <<: *cw_env
+    command: ["bundle", "exec", "rails", "s", "-p", "3000", "-b", "0.0.0.0"]
+    volumes:
+      - chatwoot_storage:/app/storage
+    networks:
+      - chatbot-net
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 8s
+        max_attempts: 8
+      update_config:
+        order: start-first
+        failure_action: rollback
+      resources:
+        limits:
+          cpus: "1.50"
+          memory: 1536M
+        reservations:
+          cpus: "0.20"
+          memory: 512M
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=chatbot-net
+        - traefik.http.routers.chatwoot.rule=Host(`chatwoot.muhbianco.com.br`)
+        - traefik.http.routers.chatwoot.entrypoints=websecure
+        - traefik.http.routers.chatwoot.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.chatwoot.priority=20
+        - traefik.http.routers.chatwoot.service=chatwoot
+        - traefik.http.routers.chatwoot.middlewares=chatwoot_headers
+        - traefik.http.services.chatwoot.loadbalancer.server.port=3000
+        - traefik.http.services.chatwoot.loadbalancer.passHostHeader=true
+        - traefik.http.middlewares.chatwoot_headers.headers.stsSeconds=31536000
+        - traefik.http.middlewares.chatwoot_headers.headers.stsIncludeSubdomains=true
+        - traefik.http.middlewares.chatwoot_headers.headers.contentTypeNosniff=true
+        - traefik.http.middlewares.chatwoot_headers.headers.browserXssFilter=true
+        - traefik.http.middlewares.chatwoot_headers.headers.referrerPolicy=no-referrer
+        - traefik.http.middlewares.chatwoot_headers.headers.customFrameOptionsValue=SAMEORIGIN
+        - traefik.http.middlewares.chatwoot_headers.headers.customResponseHeaders.X-Robots-Tag=noindex, nofollow
+
+  sidekiq:
+    image: muhrilobianco/chatwoot:latest
+    environment:
+      <<: *cw_env
+    command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
+    volumes:
+      - chatwoot_storage:/app/storage
+    networks:
+      - chatbot-net
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 8s
+        max_attempts: 8
+      update_config:
+        order: start-first
+        failure_action: rollback
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 1024M
+        reservations:
+          cpus: "0.10"
+          memory: 256M
+
+networks:
+  chatbot-net:
+    external: true
+    name: chatbot-net
+
+volumes:
+  chatwoot_storage:
