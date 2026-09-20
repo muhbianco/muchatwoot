@@ -1,0 +1,24 @@
+name: mb-overlay
+
+on:
+  push:
+    branches: [mb/main]
+  pull_request:
+    branches: [mb/main]
+
+jobs:
+  overlay-guard:
+    name: overlay allowlist + image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: fetch base tag
+        run: |
+          git fetch --depth=1 origin tag v4.17.1 \
+            || git fetch --depth=1 https://github.com/chatwoot/chatwoot.git tag v4.17.1
+      - name: allowlist vs v4.17.1
+        run: bash deploy/hel1/build.sh
+      - name: overlay image
+        run: docker build -f deploy/hel1/Dockerfile -t chatwoot:overlay .
