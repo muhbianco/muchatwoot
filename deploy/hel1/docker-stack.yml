@@ -1,16 +1,19 @@
 # =============================================================================
 # Chatwoot — Stack Portainer (Docker Swarm + Traefik)
-# Fonte: muchatwoot@mb/main  |  YAML: deploy/hel1/docker-stack.yml
-# Imagem: muhrilobianco/chatwoot:latest
-#   docker build -f deploy/hel1/Dockerfile -t chatwoot:latest .
+# Fonte: muchatwoot@mb/main (fork completo)  |  YAML: deploy/hel1/docker-stack.yml
+# Imagem: muhrilobianco/chatwoot:${CHATWOOT_TAG} = mb-<tag upstream>-<sha12>, build do código-fonte
+#   do fork com o docker/Dockerfile do upstream (edição EE, igual à imagem oficial).
+# Deploy: push no mb/main → Woodpecker (.woodpecker/deploy.yaml) → StackUpdate com CHATWOOT_TAG.
 # Domínio: chatwoot.muhbianco.com.br
 # Rede: chatbot-net (pgvector_pgvector + redis_redis). Redis DB 2.
 #
 # Mesa humana multi-tenant. Webhooks da Meta NÃO entram aqui — a api-agents
 # recebe Face/Insta/Zap e só encaminha conversas em handoff (inbox tipo API).
 #
-# Secrets via ${VAR} no Env do Portainer. YAML local pode ir no StackFileContent.
-# One-shot após create: rails db:chatwoot_prepare
+# Secrets via ${VAR} no Env do Portainer. Este YAML é a fonte da verdade (vai inteiro no
+# StackUpdate pelo hel1-ops/scripts/portainer-stack-update.py, que preserva o Env).
+# Migrações: o rails roda `db:chatwoot_prepare` antes do servidor (idempotente: cria/carrega o
+# schema na primeira vez, senão `db:migrate`; lock consultivo do ActiveRecord). O sidekiq não migra.
 # =============================================================================
 
 version: "3.8"
@@ -49,10 +52,20 @@ x-cw-env: &cw_env
 
 services:
   rails:
-    image: muhrilobianco/chatwoot:latest
+    image: muhrilobianco/chatwoot:${CHATWOOT_TAG:?CHATWOOT_TAG obrigatorio}
     environment:
       <<: *cw_env
-    command: ["bundle", "exec", "rails", "s", "-p", "3000", "-b", "0.0.0.0"]
+    command:
+      - sh
+      - -ec
+      - POSTGRES_STATEMENT_TIMEOUT=600s bundle exec rails db:chatwoot_prepare && exec bundle exec rails s -p 3000 -b 0.0.0.0
+    # start-first só derruba a task antiga quando a nova responde (migração + boot cabem no start_period).
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 600s
     volumes:
       - chatwoot_storage:/app/storage
     networks:
@@ -94,7 +107,7 @@ services:
         - traefik.http.middlewares.chatwoot_headers.headers.customResponseHeaders.X-Robots-Tag=noindex, nofollow
 
   sidekiq:
-    image: muhrilobianco/chatwoot:latest
+    image: muhrilobianco/chatwoot:${CHATWOOT_TAG:?CHATWOOT_TAG obrigatorio}
     environment:
       <<: *cw_env
     command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]

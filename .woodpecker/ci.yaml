@@ -1,0 +1,62 @@
+# CI do fork: roda só o que o fork mudou em relação à tag upstream (VERSION_CW → vX.Y.Z).
+#   - specs alterados + specs dos arquivos app/ lib/ enterprise/ alterados (Postgres pgvector + Redis);
+#   - rubocop nos .rb alterados;
+#   - eslint + vitest relacionados quando app/javascript muda.
+# A suíte completa do upstream (16 shards) não roda aqui: ela já roda no upstream a cada release.
+when:
+  - branch: mb/main
+    event: [push, pull_request, manual]
+
+clone:
+  git:
+    image: woodpeckerci/plugin-git:2.10.1
+    settings:
+      depth: 100
+      partial: false
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ""
+      POSTGRES_DB: postgres
+      POSTGRES_HOST_AUTH_METHOD: trust
+  redis:
+    image: redis:7-alpine
+
+steps:
+  base:
+    image: muhrilobianco/ci-deployer:1
+    pull: true
+    commands:
+      - mkdir -p .ci
+      - deploy/hel1/base-tag.sh > .ci/base
+      - echo "base upstream $(cat .ci/base)"
+      - git diff --name-only "$(cat .ci/base)" HEAD > .ci/changed
+      - cat .ci/changed
+
+  ruby:
+    image: ruby:3.4.4-bookworm
+    depends_on: [base]
+    environment:
+      RAILS_ENV: test
+      POSTGRES_HOST: postgres
+      POSTGRES_USERNAME: postgres
+      POSTGRES_PASSWORD: ""
+      REDIS_URL: redis://redis:6379/1
+      BUNDLE_PATH: /usr/local/bundle
+    volumes:
+      # cache de gems entre pipelines (repo Trusted); bundle install só baixa o que mudou
+      - /var/lib/woodpecker-cache/muchatwoot/bundle:/usr/local/bundle
+    commands:
+      - deploy/hel1/ci-ruby.sh
+
+  frontend:
+    image: node:24-alpine
+    depends_on: [base]
+    when:
+      - path:
+          include: [app/javascript/**, package.json, pnpm-lock.yaml]
+    commands:
+      - deploy/hel1/ci-frontend.sh

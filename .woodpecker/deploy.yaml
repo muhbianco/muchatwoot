@@ -1,0 +1,48 @@
+# Push no mb/main = deploy do Chatwoot. Build do fork inteiro com o docker/Dockerfile do upstream
+# (edição EE, igual chatwoot/chatwoot oficial) → tag mb-<base upstream>-<sha12> (+ :latest) →
+# StackUpdate com CHATWOOT_TAG (YAML do repo; Env/segredos preservados) → espera rails+sidekiq →
+# smoke. Migrações rodam no boot do rails (db:chatwoot_prepare). Build pesado: timeout 120 min.
+when:
+  - event: push
+    branch: mb/main
+
+depends_on: [ci]
+
+clone:
+  git:
+    image: woodpeckerci/plugin-git:2.10.1
+    settings:
+      depth: 100
+      partial: false
+
+steps:
+  build:
+    image: muhrilobianco/ci-deployer:1
+    pull: true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /root/.docker/config.json:/root/.docker/config.json:ro
+    commands:
+      - BASE=$(deploy/hel1/base-tag.sh)
+      - echo "mb-$${BASE}-${CI_COMMIT_SHA:0:12}" > .chatwoot-tag
+      # O workflow de publish EE do upstream acrescenta esta linha antes do build.
+      - printf '\nENV CW_EDITION="ee"\n' >> docker/Dockerfile
+      - hel1-build --image muhrilobianco/chatwoot --tag "$(cat .chatwoot-tag)" --file docker/Dockerfile --extra-tag latest
+
+  deploy:
+    image: muhrilobianco/ci-deployer:1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /root/.docker/config.json:/root/.docker/config.json:ro
+      - /var/lib/hel1-deploy:/var/lib/hel1-deploy
+      - /root/.portainer-token:/root/.portainer-token:ro
+    environment:
+      PORTAINER_URL: https://portainer.muhbianco.com.br
+      WAIT_TIMEOUT: "1200"
+    commands:
+      - TAG=$(cat .chatwoot-tag)
+      - >-
+        hel1-deploy exec --app chatwoot --tag "$${TAG}"
+        --wait-services chatwoot_rails,chatwoot_sidekiq
+        --smoke https://chatwoot.muhbianco.com.br/api
+        -- deploy/hel1/deploy.sh "$${TAG}"

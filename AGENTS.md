@@ -128,3 +128,9 @@ Practical checklist for any change impacting core logic or public APIs
 ## Branding / White-labeling note
 
 - For user-facing strings that currently contain "Chatwoot" but should adapt to branded/self-hosted installs, prefer applying `replaceInstallationName` from `shared/composables/useBranding` in the UI layer (for example tooltip and suggestion labels) instead of adding hardcoded brand-specific copy.
+
+## MuhBianco fork (mb/main)
+
+- This is the MuhBianco production fork: `mb/main` = upstream release tag (`VERSION_CW`) + our commits. The former overlay repo `muh-chatwoot` was merged here; there is no overlay image anymore.
+- Deploy = push to `mb/main`. Woodpecker builds the whole fork with `docker/Dockerfile` (EE edition) and updates the `chatwoot` stack on hel1 with `CHATWOOT_TAG`. CI runs rubocop/rspec only for what changed vs the upstream tag. See `deploy/hel1/README.md`.
+- Upgrading upstream: merge the new tag into `mb/main` (no rebase/force-push).
