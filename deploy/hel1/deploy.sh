@@ -14,6 +14,9 @@ TAG="${1:?usage: deploy.sh <image-tag>}"
 [ "$TAG" != latest ] || { echo "refusing :latest; pass the image tag being deployed" >&2; exit 2; }
 cd "$(dirname "$0")/../.."
 read -r -a UPDATER <<<"${PORTAINER_STACK_UPDATE:-portainer-stack-update}"
+# SMTP ainda não configurado no Env do Portainer (Chatwoot sem e-mail em produção): vazio de propósito.
+# Ao configurar o SMTP, tirar daqui para o guard voltar a exigir as quatro chaves.
+EMPTY_OK=(--allow-empty SMTP_ADDRESS --allow-empty SMTP_PORT --allow-empty SMTP_USERNAME --allow-empty SMTP_PASSWORD)
 
-"${UPDATER[@]}" --stack chatwoot --yaml deploy/hel1/docker-stack.yml --set-env CHATWOOT_TAG="$TAG" --dry-run
-"${UPDATER[@]}" --stack chatwoot --yaml deploy/hel1/docker-stack.yml --set-env CHATWOOT_TAG="$TAG"
+"${UPDATER[@]}" --stack chatwoot --yaml deploy/hel1/docker-stack.yml --set-env CHATWOOT_TAG="$TAG" "${EMPTY_OK[@]}" --dry-run
+"${UPDATER[@]}" --stack chatwoot --yaml deploy/hel1/docker-stack.yml --set-env CHATWOOT_TAG="$TAG" "${EMPTY_OK[@]}"
