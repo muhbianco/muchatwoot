@@ -38,6 +38,10 @@ bundle install -j4 --quiet
 if [ ${#rbfiles[@]} -gt 0 ]; then bundle exec rubocop --force-exclusion "${rbfiles[@]}"; fi
 
 if [ ${#specs[@]} -gt 0 ]; then
+  # O boot do Rails (ExecJS) precisa de um runtime JS; o CI do upstream também instala Node.
+  if ! command -v node >/dev/null; then
+    apt-get update -qq && apt-get install -y -qq --no-install-recommends nodejs >/dev/null
+  fi
   # A imagem do Postgres só abre TCP depois do init (o init roda sem listen_addresses).
   for _ in $(seq 1 60); do (exec 3<>"/dev/tcp/${POSTGRES_HOST}/5432") 2>/dev/null && break; sleep 2; done
   bundle exec rake db:create db:schema:load
