@@ -4,12 +4,15 @@
 set -eu
 cd "$(dirname "$0")/../.."
 
+[ -s .ci/base ] && [ -f .ci/changed ] || { echo ".ci/base ou .ci/changed ausente (step base não rodou?)" >&2; exit 1; }
 apk add --no-cache git >/dev/null
+# O workspace pode ter outro dono que o usuário do container; o vitest --changed usa git.
+git config --global --add safe.directory "$PWD"
 corepack enable
 pnpm install --frozen-lockfile
 
 base=$(cat .ci/base)
-files=$(git diff --name-only "$base" HEAD | grep -E '^app/.*\.(js|vue)$' | while read -r f; do [ -f "$f" ] && echo "$f"; done || true)
+files=$(grep -E '^app/.*\.(js|vue)$' .ci/changed | while read -r f; do [ -f "$f" ] && echo "$f"; done || true)
 if [ -n "$files" ]; then
   # shellcheck disable=SC2086
   pnpm exec eslint $files

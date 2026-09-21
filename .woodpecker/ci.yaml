@@ -34,7 +34,7 @@ steps:
       - deploy/hel1/base-tag.sh > .ci/base
       - echo "base upstream $(cat .ci/base)"
       - git diff --name-only "$(cat .ci/base)" HEAD > .ci/changed
-      - cat .ci/changed
+      - echo "alterados vs a base:" && cat .ci/changed
 
   ruby:
     image: ruby:3.4.4-bookworm

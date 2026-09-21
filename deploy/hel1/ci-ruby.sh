@@ -5,8 +5,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
+# Lista de arquivos vem do step `base` (git diff vs a tag); ausente = falha, nunca "nada mudou".
+[ -s .ci/base ] && [ -f .ci/changed ] || { echo ".ci/base ou .ci/changed ausente (step base não rodou?)" >&2; exit 1; }
 base=$(cat .ci/base)
-mapfile -t changed < <(git diff --name-only "$base" HEAD)
+mapfile -t changed < .ci/changed
 
 specs=() rbfiles=()
 add_spec() { local s=$1 x; [ -f "$s" ] || return 0; for x in "${specs[@]}"; do [ "$x" = "$s" ] && return 0; done; specs+=("$s"); }
