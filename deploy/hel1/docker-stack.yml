@@ -102,7 +102,9 @@ services:
         - traefik.http.middlewares.chatwoot_headers.headers.stsIncludeSubdomains=true
         - traefik.http.middlewares.chatwoot_headers.headers.contentTypeNosniff=true
         - traefik.http.middlewares.chatwoot_headers.headers.browserXssFilter=true
-        - traefik.http.middlewares.chatwoot_headers.headers.referrerPolicy=no-referrer
+        # no-referrer faz o navegador mandar Origin: null em POST de formulário e o Rails
+        # recusa (422 CSRF) no /super_admin e nas telas Devise.
+        - traefik.http.middlewares.chatwoot_headers.headers.referrerPolicy=strict-origin-when-cross-origin
         - traefik.http.middlewares.chatwoot_headers.headers.customFrameOptionsValue=SAMEORIGIN
         - traefik.http.middlewares.chatwoot_headers.headers.customResponseHeaders.X-Robots-Tag=noindex, nofollow
 
