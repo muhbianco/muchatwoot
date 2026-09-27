@@ -1,4 +1,6 @@
 class DeviseOverrides::SessionsController < DeviseTokenAuth::SessionsController
+  include DashboardHost
+
   MAX_SESSIONS = ENV.fetch('MAX_USER_SESSIONS', 25).to_i
 
   # Prevent session parameter from being passed
@@ -23,11 +25,22 @@ class DeviseOverrides::SessionsController < DeviseTokenAuth::SessionsController
   end
 
   def render_create_success
+    return reject_login_outside_dashboard_host unless dashboard_host_allows_user?(@resource)
+
     track_user_session unless @impersonation
     render partial: 'devise/auth', formats: [:json], locals: { resource: @resource }
   end
 
   private
+
+  # Credencial certa, host de outro cliente: desfaz o token recém-criado e responde como senha errada.
+  # @resource = nil faz o after_action do devise_token_auth não devolver cabeçalhos de auth.
+  def reject_login_outside_dashboard_host
+    @resource.tokens.delete(@token.client) if @token
+    @resource.save!
+    @resource = nil
+    render_error(:unauthorized, I18n.t('devise_token_auth.sessions.bad_credentials'))
+  end
 
   def render_create_error_not_confirmed
     render_error(

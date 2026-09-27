@@ -1,4 +1,6 @@
 module EnsureCurrentAccountHelper
+  include DashboardHost
+
   private
 
   def current_account
@@ -9,6 +11,7 @@ module EnsureCurrentAccountHelper
   def ensure_current_account
     account = Account.find(params[:account_id])
     render_unauthorized('Account is suspended') and return unless account.active?
+    render_unauthorized(I18n.t('errors.account.not_authorized')) and return unless dashboard_host_allows_account?(account.id)
 
     if current_user
       account_accessible_for_user?(account)
