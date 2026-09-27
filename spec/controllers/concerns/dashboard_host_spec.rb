@@ -2,7 +2,7 @@ require 'rails_helper'
 
 RSpec.describe 'Dashboard host scope', type: :request do
   let(:host) { 'chatwoot.cliente.test' }
-  let(:account) { create(:account, custom_attributes: { 'dashboard_hosts' => [host] }) }
+  let!(:account) { create(:account, custom_attributes: { 'dashboard_hosts' => [host] }) }
   let(:other_account) { create(:account) }
   let(:agent) { create(:user, account: account, role: :agent) }
   let(:outsider) { create(:user, account: other_account, role: :agent) }
