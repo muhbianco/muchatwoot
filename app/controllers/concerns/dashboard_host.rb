@@ -21,4 +21,14 @@ module DashboardHost
   def dashboard_host_allows_user?(user)
     dashboard_host_account_id.nil? || user.account_users.exists?(account_id: dashboard_host_account_id)
   end
+
+  # Login (DeviseOverrides::SessionsController): credencial certa, host de outro cliente.
+  # Desfaz o token recém-criado e responde como senha errada; @resource = nil faz o
+  # after_action do devise_token_auth não devolver cabeçalhos de auth.
+  def reject_login_outside_dashboard_host
+    @resource.tokens.delete(@token.client) if @token
+    @resource.save!
+    @resource = nil
+    render_error(:unauthorized, I18n.t('devise_token_auth.sessions.bad_credentials'))
+  end
 end

@@ -33,15 +33,6 @@ class DeviseOverrides::SessionsController < DeviseTokenAuth::SessionsController
 
   private
 
-  # Credencial certa, host de outro cliente: desfaz o token recém-criado e responde como senha errada.
-  # @resource = nil faz o after_action do devise_token_auth não devolver cabeçalhos de auth.
-  def reject_login_outside_dashboard_host
-    @resource.tokens.delete(@token.client) if @token
-    @resource.save!
-    @resource = nil
-    render_error(:unauthorized, I18n.t('devise_token_auth.sessions.bad_credentials'))
-  end
-
   def render_create_error_not_confirmed
     render_error(
       :unauthorized,
